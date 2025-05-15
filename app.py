@@ -1,48 +1,68 @@
 from flask import Flask, request, jsonify
 import openai
-import os
 import base64
+import os
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+# Setup Flask app
 app = Flask(__name__)
+
+# Set your OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/api/", methods=["POST"])
-def process():
+def answer_question():
     data = request.get_json()
-    question = data.get("question")
-    image = data.get("image")
 
-    # Optional: save image if needed
-    if image:
-        with open("input.webp", "wb") as f:
-            f.write(base64.b64decode(image))
+    if not data or "question" not in data:
+        return jsonify({"error": "Missing 'question' in request"}), 400
 
-    prompt = f"""You are a virtual TA. The student asked:
-{question}
+    question = data["question"]
+    image_data = data.get("image")
 
-If an image was attached, it may contain additional context (e.g., quiz screenshot). Be helpful and give the best possible answer. Include relevant course forum links if you know them."""
+    prompt = f"Answer the student's question:\n\n{question}"
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
-    )
+    if image_data:
+        prompt += "\n\nAlso consider the image provided."
 
-    text = response.choices[0].message.content
+    try:
+        # Ask OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # or gpt-4o if you want
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant for course-related queries."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=500
+        )
 
-    # For now, return static links
-    links = [
-        {
-            "url": "https://discourse.onlinedegree.iitm.ac.in/t/ga5-question-8-clarification/155939/4",
-            "text": "Use the model that’s mentioned in the question."
-        },
-        {
-            "url": "https://discourse.onlinedegree.iitm.ac.in/t/ga5-question-8-clarification/155939/3",
-            "text": "Use tokenizer like Prof. Anand did to count tokens and calculate cost."
-        }
-    ]
+        answer = response["choices"][0]["message"]["content"].strip()
 
-    return jsonify({"answer": text.strip(), "links": links})
+        # Dummy links (replace with actual logic if needed)
+        links = [
+            {
+                "url": "https://discourse.onlinedegree.iitm.ac.in/t/ga5-question-8-clarification/155939/4",
+                "text": "Use the model that’s mentioned in the question."
+            },
+            {
+                "url": "https://discourse.onlinedegree.iitm.ac.in/t/ga5-question-8-clarification/155939/3",
+                "text": "You may just need to tokenize and multiply by the rate."
+            }
+        ]
 
+        return jsonify({
+            "answer": answer,
+            "links": links
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Run app on Render-compatible port
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
