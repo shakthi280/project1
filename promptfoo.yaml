@@ -1,0 +1,10 @@
+providers:
+  - id: ta-api
+    type: custom
+    config:
+      url: https://project1-2-p32d.onrender.com/api/  # or Render URL
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        question: "{{prompt}}"
